@@ -158,7 +158,7 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
 	      std::cout <<"Locally optimized model is better\n";
               best_support = local_support;
               best_model.R = local_model.leftCols(3); // todo can do normal transformation here
-              best_model.C = (best_model.R).transpose()*(local_model.rightCols(1));
+              best_model.C = -(best_model.R).transpose()*(local_model.rightCols(1));
               best_model_is_local = true;
             }
           }
