@@ -2,3 +2,6 @@
 	path = doc/_build/html
 	url = https://github.com/colmap/colmap.github.io.git
 	ignore = all
+[submodule "lib/pnp_lib"]
+	path = lib/pnp_lib
+	url = https://uhtikiber@bitbucket.org/fast_localization/pnp_lib.git

@@ -268,6 +268,7 @@ set(COLMAP_INCLUDE_DIRS
     ${Qt5Core_INCLUDE_DIRS}
     ${Qt5OpenGL_INCLUDE_DIRS}
     ${Qt5Widgets_INCLUDE_DIRS}
+
 )
 
 set(COLMAP_LINK_DIRS
@@ -309,11 +310,13 @@ set(COLMAP_INTERNAL_LIBRARIES
     sqlite3
     sift_gpu
     vlfeat
+    pnpf
 )
 
 include_directories(
     lib
     src
+    lib/pnp_lib/pnpf/include
     ${COLMAP_INCLUDE_DIRS}
 )
 
@@ -335,6 +338,7 @@ COLMAP_ADD_SOURCE_DIR(lib/PoissonRecon LIB_POISSON_RECON_SRCS *.h *.cpp *.inl)
 COLMAP_ADD_SOURCE_DIR(lib/SiftGPU LIB_SIFT_GPU_SRCS *.h *.cpp *.cu)
 COLMAP_ADD_SOURCE_DIR(lib/SQLite LIB_SQLITE_SRCS *.h *.c)
 COLMAP_ADD_SOURCE_DIR(lib/VLFeat LIB_VLFEAT_SRCS *.h *.c *.tc)
+COLMAP_ADD_SOURCE_DIR(lib/pnp_lib LIB_PNPF_SRCS *.h *.c *.cpp *.hpp)
 
 COLMAP_ADD_SOURCE_DIR(src/base BASE_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/controllers CONTROLLERS_SRCS *.h *.cc)
@@ -374,6 +378,7 @@ add_library(
     ${TOOLS_SRCS}
     ${UI_SRCS}
     ${UTIL_SRCS}
+    ${LIB_PNPF_SRCS}
 )
 
 # Prevent the library from being compiled automatically.

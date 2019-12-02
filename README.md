@@ -1,6 +1,11 @@
 COLMAP
 ======
 
+This colmap alteration containts pnpf library as a submodule. Before building run this:
+```bash
+git submodule update --init --recursive
+```
+
 About
 -----
 

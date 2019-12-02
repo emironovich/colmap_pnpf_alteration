@@ -36,16 +36,22 @@
 #include "base/essential_matrix.h"
 #include "base/pose.h"
 #include "estimators/absolute_pose.h"
+#include "estimators/absolute_pose_pnpf.h"
 #include "estimators/essential_matrix.h"
 #include "optim/bundle_adjustment.h"
 #include "util/matrix.h"
 #include "util/misc.h"
 #include "util/threading.h"
-
+#include "optim/ransac.h"
+#include "optim/loransac_pnpf.h"
+#include <iostream>
+#include <fstream>
 namespace colmap {
 namespace {
 
 typedef LORANSAC<P3PEstimator, EPNPEstimator> AbsolutePoseRANSAC;
+//typedef RANSAC<P35PfEstimator> AbsolutePoseRANSAC_pnpf;
+typedef LORANSAC<P35PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_pnpf;
 
 void EstimateAbsolutePoseKernel(const Camera& camera,
                                 const double focal_length_factor,
@@ -84,71 +90,141 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           std::vector<char>* inlier_mask) {
   options.Check();
 
-  std::vector<double> focal_length_factors;
-  if (options.estimate_focal_length) {
-    // Generate focal length factors using a quadratic function,
-    // such that more samples are drawn for small focal lengths
-    focal_length_factors.reserve(options.num_focal_length_samples + 1);
-    const double fstep = 1.0 / options.num_focal_length_samples;
-    const double fscale =
-        options.max_focal_length_ratio - options.min_focal_length_ratio;
-    for (double f = 0; f <= 1.0; f += fstep) {
-      focal_length_factors.push_back(options.min_focal_length_ratio +
-                                     fscale * f * f);
-    }
-  } else {
-    focal_length_factors.reserve(1);
-    focal_length_factors.push_back(1);
-  }
+  if(options.estimate_focal_length && (camera->ModelName() == "SIMPLE_PINHOLE" ||
+                                       camera->ModelName() == "PINHOLE" ||
+                                       camera->ModelName() == "SIMPLE_RADIAL" ||
+                                       camera->ModelName() == "RADIAL")) {
+ // //   Scale the focal length by the given factor.
+     Camera scaled_camera = *camera;
+     const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
+     for (const size_t idx : focal_length_idxs) {
+       scaled_camera.Params(idx) = 1;
+     }
 
-  std::vector<std::future<void>> futures;
-  futures.resize(focal_length_factors.size());
-  std::vector<typename AbsolutePoseRANSAC::Report,
-              Eigen::aligned_allocator<typename AbsolutePoseRANSAC::Report>>
-      reports;
-  reports.resize(focal_length_factors.size());
+    //  // Normalize image coordinates with current camera hypothesis.
+      std::vector<Eigen::Vector2d> points2D_N(points2D.size());
+      for (size_t i = 0; i < points2D.size(); ++i) {
+        points2D_N[i] = scaled_camera.ImageToWorld(points2D[i]);
+      }
 
-  ThreadPool thread_pool(std::min(
-      options.num_threads, static_cast<int>(focal_length_factors.size())));
+    std::cout << "Using P3.5Pf solver\n";
+    AbsolutePoseRANSAC_pnpf ransac(options.ransac_options);
+    AbsolutePoseRANSAC_pnpf::Report report = ransac.Estimate(points2D_N, points3D);
+   // AbsolutePoseRANSAC_pnpf::Report report = ransac.Estimate(points2D, points3D);
 
-  for (size_t i = 0; i < focal_length_factors.size(); ++i) {
-    futures[i] = thread_pool.AddTask(
-        EstimateAbsolutePoseKernel, *camera, focal_length_factors[i], points2D,
-        points3D, options.ransac_options, &reports[i]);
-  }
+    P35PfEstimator::M_t best_model;
+    *num_inliers = 0;
+    inlier_mask->clear();
 
-  double focal_length_factor = 0;
-  Eigen::Matrix3x4d proj_matrix;
-  *num_inliers = 0;
-  inlier_mask->clear();
-
-  // Find best model among all focal lengths.
-  for (size_t i = 0; i < focal_length_factors.size(); ++i) {
-    futures[i].get();
-    const auto report = reports[i];
     if (report.success && report.support.num_inliers > *num_inliers) {
       *num_inliers = report.support.num_inliers;
-      proj_matrix = report.model;
+      best_model = report.model;
       *inlier_mask = report.inlier_mask;
-      focal_length_factor = focal_length_factors[i];
+      std::cout << "Estimated focal distance: " << best_model.f << std::endl;
     }
-  }
-
-  if (*num_inliers == 0) {
-    return false;
-  }
-
-  // Scale output camera with best estimated focal length.
-  if (options.estimate_focal_length && *num_inliers > 0) {
-    const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
-    for (const size_t idx : focal_length_idxs) {
-      camera->Params(idx) *= focal_length_factor;
+    std::cout << "Number of inliers: " << *num_inliers << std::endl;
+    if (*num_inliers == 0) {
+      return false;
     }
-  }
 
-  // Extract pose parameters.
-  *qvec = RotationMatrixToQuaternion(proj_matrix.leftCols<3>());
-  *tvec = proj_matrix.rightCols<1>();
+    // Scale output camera with best estimated focal length.
+
+    if (*num_inliers > 0) {
+      const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
+      for (const size_t idx : focal_length_idxs) {
+        camera->Params(idx) = best_model.f;
+      }
+    }
+
+//    std::ofstream fout;
+//    fout.open("mycolmap_f.txt", std::ofstream::out | std::ofstream::app);
+//    if(fout) std::cout << "File opend OK!\n";
+//    else std::cout << "Could not open file :C\n";
+//    fout << best_model.f << std::endl;
+//    fout.close();
+
+//    fout.open("mycolmap_R.txt", std::ofstream::out | std::ofstream::app);
+//    fout << best_model.R << std::endl;
+//    fout.close();
+
+//    fout.open("mycolmap_C.txt", std::ofstream::out | std::ofstream::app);
+//    fout << best_model.C << std::endl;
+//    fout.close();
+
+
+
+    // Extract pose parameters.
+    *qvec = RotationMatrixToQuaternion(best_model.R);
+    *tvec = -best_model.R * best_model.C;
+
+  }
+  else {
+    std::vector<double> focal_length_factors;
+    if (options.estimate_focal_length) {
+      // Generate focal length factors using a quadratic function,
+      // such that more samples are drawn for small focal lengths
+      focal_length_factors.reserve(options.num_focal_length_samples + 1);
+      const double fstep = 1.0 / options.num_focal_length_samples;
+      const double fscale =
+          options.max_focal_length_ratio - options.min_focal_length_ratio;
+      for (double f = 0; f <= 1.0; f += fstep) {
+        focal_length_factors.push_back(options.min_focal_length_ratio +
+                                       fscale * f * f);
+      }
+    } else {
+      focal_length_factors.reserve(1);
+      focal_length_factors.push_back(1);
+    }
+
+    std::vector<std::future<void>> futures;
+    futures.resize(focal_length_factors.size());
+    std::vector<typename AbsolutePoseRANSAC::Report,
+                Eigen::aligned_allocator<typename AbsolutePoseRANSAC::Report>>
+        reports;
+    reports.resize(focal_length_factors.size());
+
+    ThreadPool thread_pool(std::min(
+        options.num_threads, static_cast<int>(focal_length_factors.size())));
+
+    for (size_t i = 0; i < focal_length_factors.size(); ++i) {
+      futures[i] = thread_pool.AddTask(
+          EstimateAbsolutePoseKernel, *camera, focal_length_factors[i],
+          points2D, points3D, options.ransac_options, &reports[i]);
+    }
+
+    double focal_length_factor = 0;
+    Eigen::Matrix3x4d proj_matrix;
+    *num_inliers = 0;
+    inlier_mask->clear();
+
+    // Find best model among all focal lengths.
+    for (size_t i = 0; i < focal_length_factors.size(); ++i) {
+      futures[i].get();
+      const auto report = reports[i];
+      if (report.success && report.support.num_inliers > *num_inliers) {
+        *num_inliers = report.support.num_inliers;
+        proj_matrix = report.model;
+        *inlier_mask = report.inlier_mask;
+        focal_length_factor = focal_length_factors[i];
+      }
+    }
+
+    if (*num_inliers == 0) {
+      return false;
+    }
+
+    // Scale output camera with best estimated focal length.
+    if (options.estimate_focal_length && *num_inliers > 0) {
+      const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
+      for (const size_t idx : focal_length_idxs) {
+        camera->Params(idx) *= focal_length_factor;
+      }
+    }
+
+    // Extract pose parameters.
+    *qvec = RotationMatrixToQuaternion(proj_matrix.leftCols<3>());
+    *tvec = proj_matrix.rightCols<1>();
+  }
 
   if (IsNaN(*qvec) || IsNaN(*tvec)) {
     return false;

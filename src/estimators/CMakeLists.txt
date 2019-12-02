@@ -33,6 +33,7 @@ set(FOLDER_NAME "estimators")
 
 COLMAP_ADD_SOURCES(
     absolute_pose.h absolute_pose.cc
+    absolute_pose_pnpf.h absolute_pose_pnpf.cc
     affine_transform.h affine_transform.cc
     coordinate_frame.h coordinate_frame.cc
     essential_matrix.h essential_matrix.cc
