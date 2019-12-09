@@ -37,7 +37,7 @@ std::vector<P35PfEstimator::M_t> P35PfEstimator::Estimate(
   for (int i = 0; i < n; ++i) {
     results[i].f = fs[i];
     results[i].R = Rs[i];
-    results[i].C = Cs[i];
+    results[i].T = -Rs[i]*Cs[i];
   }
 
   return results;
@@ -45,18 +45,17 @@ std::vector<P35PfEstimator::M_t> P35PfEstimator::Estimate(
 
 void P35PfEstimator::Residuals(const std::vector<X_t>& points2D,
                                const std::vector<Y_t>& points3D,
-                               const M_t& res,
+                               const M_t& params,
                                std::vector<double>* residuals) {
   // calibration matrix
   Eigen::Matrix3d K;
-  K.setZero();
-  K(0, 0) = K(1, 1) = res.f;
-  K(2, 2) = 1;
+  K << params.f, 0, 0,
+       0, params.f, 0,
+       0,        0, 1;
 
   Eigen::Matrix3x4d proj_matrix;
-  proj_matrix.setIdentity();
-  proj_matrix.col(3) = -res.C;
-  proj_matrix= K * res.R * proj_matrix;
+  proj_matrix << params.R, params.T;
+  proj_matrix= K * proj_matrix;
   //todo check
   ComputeSquaredReprojectionError(points2D, points3D, proj_matrix, residuals);
 }

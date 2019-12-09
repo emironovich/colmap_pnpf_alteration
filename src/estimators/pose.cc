@@ -94,14 +94,22 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                                        camera->ModelName() == "PINHOLE" ||
                                        camera->ModelName() == "SIMPLE_RADIAL" ||
                                        camera->ModelName() == "RADIAL")) {
- // //   Scale the focal length by the given factor.
+  // Set camera focal length to one so can normalize properly
+  // todo also mb set distortion to zero
      Camera scaled_camera = *camera;
      const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
      for (const size_t idx : focal_length_idxs) {
        scaled_camera.Params(idx) = 1;
      }
 
-    //  // Normalize image coordinates with current camera hypothesis.
+//     std::cout << "Principal point coordinates: ";
+//     const std::vector<size_t>& principal_point_idxs = camera->PrincipalPointIdxs();
+//     for (const size_t idx : principal_point_idxs) {
+//       std::cout << camera->Params(idx) << " ";
+//     }
+//     std::cout << std::endl;
+
+    //  Normalize image coordinates with current camera hypothesis.
       std::vector<Eigen::Vector2d> points2D_N(points2D.size());
       for (size_t i = 0; i < points2D.size(); ++i) {
         points2D_N[i] = scaled_camera.ImageToWorld(points2D[i]);
@@ -110,7 +118,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
     std::cout << "Using P3.5Pf solver\n";
     AbsolutePoseRANSAC_pnpf ransac(options.ransac_options);
     AbsolutePoseRANSAC_pnpf::Report report = ransac.Estimate(points2D_N, points3D);
-   // AbsolutePoseRANSAC_pnpf::Report report = ransac.Estimate(points2D, points3D);
 
     P35PfEstimator::M_t best_model;
     *num_inliers = 0;
@@ -120,14 +127,14 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
       *num_inliers = report.support.num_inliers;
       best_model = report.model;
       *inlier_mask = report.inlier_mask;
-      std::cout << "Estimated focal distance: " << best_model.f << std::endl;
+     // std::cout << "Estimated focal distance: " << best_model.f << std::endl;
     }
-    std::cout << "Number of inliers: " << *num_inliers << std::endl;
+    //std::cout << "Number of inliers: " << *num_inliers << std::endl;
     if (*num_inliers == 0) {
       return false;
     }
 
-    // Scale output camera with best estimated focal length.
+    // Set output camera with best estimated focal length.
 
     if (*num_inliers > 0) {
       const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
@@ -152,10 +159,9 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
 //    fout.close();
 
 
-
     // Extract pose parameters.
     *qvec = RotationMatrixToQuaternion(best_model.R);
-    *tvec = -best_model.R * best_model.C;
+    *tvec = best_model.T;
 
   }
   else {

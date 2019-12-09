@@ -52,6 +52,7 @@ COLMAP_ADD_SOURCES(
 )
 
 COLMAP_ADD_TEST(absolute_pose_test absolute_pose_test.cc)
+COLMAP_ADD_TEST(absolute_pose_pnpf_test absolute_pose_pnpf_test.cc)
 COLMAP_ADD_TEST(affine_transform_test affine_transform_test.cc)
 COLMAP_ADD_TEST(coordinate_frame_test coordinate_frame_test.cc)
 COLMAP_ADD_TEST(essential_matrix_test essential_matrix_test.cc)

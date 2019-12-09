@@ -46,6 +46,7 @@ COLMAP_ADD_TEST(combination_sampler_test combination_sampler_test.cc)
 COLMAP_ADD_TEST(least_absolute_deviations_test
                 least_absolute_deviations_test.cc)
 COLMAP_ADD_TEST(loransac_test loransac_test.cc)
+COLMAP_ADD_TEST(loransac_pnpf_test loransac_pnpf_test.cc)
 COLMAP_ADD_TEST(progressive_sampler_test progressive_sampler_test.cc)
 COLMAP_ADD_TEST(random_sampler_test random_sampler_test.cc)
 COLMAP_ADD_TEST(ransac_test ransac_test.cc)
