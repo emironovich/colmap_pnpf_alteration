@@ -5,30 +5,29 @@
 #ifndef COLMAP_LORANSAC_PNPF_H
 #define COLMAP_LORANSAC_PNPF_H
 
+#include <Eigen/Dense>
 #include <cfloat>
+#include <iostream>
 #include <random>
 #include <stdexcept>
 #include <vector>
-#include <iostream>
-#include <Eigen/Dense>
 
+#include "estimators/absolute_pose_pnpf.h"
+#include "optim/loransac.h"
 #include "optim/random_sampler.h"
 #include "optim/ransac.h"
 #include "optim/support_measurement.h"
 #include "util/alignment.h"
 #include "util/logging.h"
-#include "estimators/absolute_pose_pnpf.h"
-#include "optim/loransac.h"
 
 namespace colmap {
 
 // Implementation of LO-RANSAC (Locally Optimized RANSAC).
 //
 // "Locally Optimized RANSAC" Ondrej Chum, Jiri Matas, Josef Kittler, DAGM 2003.
-template <typename LocalEstimator,
-    typename SupportMeasurer,
-    typename Sampler>
-class LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler> : public RANSAC<P35PfEstimator, SupportMeasurer, Sampler> {
+template <typename LocalEstimator, typename SupportMeasurer, typename Sampler>
+class LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>
+    : public RANSAC<P35PfEstimator, SupportMeasurer, Sampler> {
  public:
   using typename RANSAC<P35PfEstimator, SupportMeasurer, Sampler>::Report;
 
@@ -57,20 +56,21 @@ class LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler> : publi
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename LocalEstimator, typename SupportMeasurer,
-    typename Sampler>
+template <typename LocalEstimator, typename SupportMeasurer, typename Sampler>
 LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::LORANSAC(
     const RANSACOptions& options)
     : RANSAC<P35PfEstimator, SupportMeasurer, Sampler>(options) {}
 
-template <typename LocalEstimator, typename SupportMeasurer,
-    typename Sampler>
-typename LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Report
+template <typename LocalEstimator, typename SupportMeasurer, typename Sampler>
+typename LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer,
+                  Sampler>::Report
 LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
     const std::vector<typename P35PfEstimator::X_t>& X,
     const std::vector<typename P35PfEstimator::Y_t>& Y) {
   CHECK_EQ(X.size(), Y.size());
-  std::cout << "Using P3.5Pf+EPNP LORANSAC\n";
+  //  std::ofstream fout;
+  //  fout.open("loransac_check.txt", std::ofstream::out | std::ofstream::app);
+  //  fout << "Using P3.5Pf+EPNP LORANSAC\n";
   const size_t num_samples = X.size();
 
   typename RANSAC<P35PfEstimator, SupportMeasurer, Sampler>::Report report;
@@ -80,7 +80,7 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
   if (num_samples < P35PfEstimator::kMinNumSamples) {
     return report;
   }
-
+  //
   typename SupportMeasurer::Support best_support;
   typename P35PfEstimator::M_t best_model;
   bool best_model_is_local = false;
@@ -94,8 +94,12 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
   std::vector<typename LocalEstimator::X_t> X_inlier;
   std::vector<typename LocalEstimator::Y_t> Y_inlier;
 
-  std::vector<typename P35PfEstimator::X_t> X_rand(P35PfEstimator::kMinNumSamples);
-  std::vector<typename P35PfEstimator::Y_t> Y_rand(P35PfEstimator::kMinNumSamples);
+  std::vector<typename P35PfEstimator::X_t> X_rand(
+      P35PfEstimator::kMinNumSamples);
+  std::vector<typename P35PfEstimator::Y_t> Y_rand(
+      P35PfEstimator::kMinNumSamples);
+
+  std::vector<typename LocalEstimator::X_t> X_normalized(num_samples);
 
   sampler.Initialize(num_samples);
 
@@ -137,8 +141,10 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
           X_inlier.reserve(support.num_inliers);
           Y_inlier.reserve(support.num_inliers);
           for (size_t i = 0; i < residuals.size(); ++i) {
+            X_normalized[i] = X[i] / best_model.f;
             if (residuals[i] <= max_residual) {
-              X_inlier.push_back(X[i] / best_model.f); //todo can calibrate by focal length here
+              X_inlier.push_back(
+                  X_normalized[i]);  // todo can calibrate by focal length here
               Y_inlier.push_back(Y[i]);
             }
           }
@@ -146,18 +152,25 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
           const std::vector<typename LocalEstimator::M_t> local_models =
               local_estimator.Estimate(X_inlier, Y_inlier);
 
+          //          fout << "Local models num: " << local_models.size() <<
+          //          "\n";
+
           for (const auto& local_model : local_models) {
-            local_estimator.Residuals(X, Y, local_model, &residuals);
+            local_estimator.Residuals(X_normalized, Y, local_model, &residuals);
             CHECK_EQ(residuals.size(), X.size());
 
             const auto local_support =
                 support_measurer.Evaluate(residuals, max_residual);
+            //            fout << "Best model inliers: " <<
+            //            best_support.num_inliers << "\n"; fout << "Local model
+            //            inliers: " << local_support.num_inliers
+            //                 << "\n";
 
             // Check if non-locally optimized model is better.
             if (support_measurer.Compare(local_support, best_support)) {
-	      std::cout <<"Locally optimized model is better\n";
+              //              fout << "Locally optimized model is better\n";
               best_support = local_support;
-              best_model.R = local_model.leftCols(3); // todo can do normal transformation here
+              best_model.R = local_model.leftCols(3);  // todo check
               best_model.T = local_model.rightCols(1);
               best_model_is_local = true;
             }
@@ -177,6 +190,8 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
       }
     }
   }
+  //  fout << "FINAL INLIERS COUNT: " << best_support.num_inliers << "\n";
+  //  fout.close();
 
   report.support = best_support;
   report.model = best_model;
@@ -191,11 +206,15 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
   // Determine inlier mask. Note that this calculates the residuals for the
   // best model twice, but saves to copy and fill the inlier mask for each
   // evaluated model. Some benchmarking revealed that this approach is faster.
-
   if (best_model_is_local) {
     typename LocalEstimator::M_t best_local_model;
-    best_local_model << (report.model).R, (report.model).T; //todo check
-    local_estimator.Residuals(X, Y, best_local_model, &residuals);
+    best_local_model << (report.model).R, (report.model).T;  // todo check
+
+    for (size_t i = 0; i < X.size(); ++i) {
+      X_normalized[i] = X[i] / (report.model).f;
+    }
+
+    local_estimator.Residuals(X_normalized, Y, best_local_model, &residuals);
   } else {
     estimator.Residuals(X, Y, report.model, &residuals);
   }
