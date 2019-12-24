@@ -122,6 +122,10 @@ class IncrementalMapper {
     // Number of threads.
     int num_threads = -1;
 
+    // Which pose estimation algorithm to use: P3P, P3.5Pf or P4Pf.
+    // 3, 35 or 4 respectively
+    int pose_algo = 3;
+
     // Method to find and select next best image to register.
     enum class ImageSelectionMethod {
       MAX_VISIBLE_POINTS_NUM,

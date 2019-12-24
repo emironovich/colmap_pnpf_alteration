@@ -94,6 +94,7 @@ MapperInitializationOptionsWidget::MapperInitializationOptionsWidget(
   AddOptionInt(&options->mapper->init_image_id1, "init_image_id1", -1);
   AddOptionInt(&options->mapper->init_image_id2, "init_image_id2", -1);
   AddOptionInt(&options->mapper->init_num_trials, "init_num_trials");
+  AddOptionInt(&options->mapper->mapper.pose_algo, "pose_algo");
   AddOptionInt(&options->mapper->mapper.init_min_num_inliers,
                "init_min_num_inliers");
   AddOptionDouble(&options->mapper->mapper.init_max_error, "init_max_error");

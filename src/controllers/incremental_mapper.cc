@@ -197,6 +197,7 @@ IncrementalMapper::Options IncrementalMapperOptions::Mapper() const {
   options.num_threads = num_threads;
   options.local_ba_num_images = ba_local_num_images;
   options.fix_existing_images = fix_existing_images;
+  options.pose_algo = pose_algo;
   return options;
 }
 

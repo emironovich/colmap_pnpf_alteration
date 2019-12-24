@@ -66,6 +66,10 @@ struct AbsolutePoseEstimationOptions {
   // Number of threads for parallel estimation of focal length.
   int num_threads = ThreadPool::kMaxNumThreads;
 
+  // Which pose estimation algorithm to use: P3P, P3.5PF or P4Pf.
+  // 3, 35 or 4 respectively
+  int pose_algo = 3;
+
   // Options used for P3P RANSAC.
   RANSACOptions ransac_options;
 

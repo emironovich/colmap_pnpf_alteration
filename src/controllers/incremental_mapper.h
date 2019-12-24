@@ -130,6 +130,10 @@ struct IncrementalMapperOptions {
   // If reconstruction is provided as input, fix the existing image poses.
   bool fix_existing_images = false;
 
+  // Which pose estimation algorithm to use: P3P, P3.5Pf or P4Pf.
+  // 3, 35 or 4 respectively
+  int pose_algo = 3;
+
   IncrementalMapper::Options Mapper() const;
   IncrementalTriangulator::Options Triangulation() const;
   BundleAdjustmentOptions LocalBundleAdjustment() const;

@@ -445,7 +445,7 @@ void OptionManager::AddMapperOptions() {
     return;
   }
   added_mapper_options_ = true;
-
+  AddAndRegisterDefaultOption("Mapper.pose_algo", &mapper->pose_algo);
   AddAndRegisterDefaultOption("Mapper.min_num_matches",
                               &mapper->min_num_matches);
   AddAndRegisterDefaultOption("Mapper.ignore_watermarks",

@@ -39,19 +39,22 @@
 #include "estimators/absolute_pose_pnpf.h"
 #include "estimators/essential_matrix.h"
 #include "optim/bundle_adjustment.h"
+#include "optim/loransac_pnpf.h"
+#include "optim/ransac.h"
 #include "util/matrix.h"
 #include "util/misc.h"
 #include "util/threading.h"
-#include "optim/ransac.h"
-#include "optim/loransac_pnpf.h"
-#include <iostream>
+#include <chrono>
 #include <fstream>
+#include <iostream>
+
 namespace colmap {
 namespace {
 
 typedef LORANSAC<P3PEstimator, EPNPEstimator> AbsolutePoseRANSAC;
-//typedef RANSAC<P35PfEstimator> AbsolutePoseRANSAC_pnpf;
-typedef LORANSAC<P35PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_pnpf;
+// typedef RANSAC<P35PfEstimator> AbsolutePoseRANSAC_pnpf;
+typedef LORANSAC<P35PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p35pf;
+typedef LORANSAC<P4PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p4pf;
 
 void EstimateAbsolutePoseKernel(const Camera& camera,
                                 const double focal_length_factor,
@@ -88,83 +91,123 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           Eigen::Vector4d* qvec, Eigen::Vector3d* tvec,
                           Camera* camera, size_t* num_inliers,
                           std::vector<char>* inlier_mask) {
+//  std::ofstream fout_t;
+//  fout_t.open("time_p35p.txt", std::ofstream::out | std::ofstream::app);
+//  auto bg = std::chrono::high_resolution_clock::now();
+
   options.Check();
 
-  if(options.estimate_focal_length && (camera->ModelName() == "SIMPLE_PINHOLE" ||
-                                       camera->ModelName() == "PINHOLE" ||
-                                       camera->ModelName() == "SIMPLE_RADIAL" ||
-                                       camera->ModelName() == "RADIAL")) {
-  // Set camera focal length to one so can normalize properly
-  // todo also mb set distortion to zero
-     Camera scaled_camera = *camera;
-     const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
-     for (const size_t idx : focal_length_idxs) {
-       scaled_camera.Params(idx) = 1;
-     }
-
-//     std::cout << "Principal point coordinates: ";
-//     const std::vector<size_t>& principal_point_idxs = camera->PrincipalPointIdxs();
-//     for (const size_t idx : principal_point_idxs) {
-//       std::cout << camera->Params(idx) << " ";
-//     }
-//     std::cout << std::endl;
+  if (options.estimate_focal_length &&
+      (options.pose_algo == 35 || options.pose_algo == 4) &&
+      (camera->ModelName() == "SIMPLE_PINHOLE" ||
+       camera->ModelName() == "PINHOLE" ||
+       camera->ModelName() == "SIMPLE_RADIAL" ||
+       camera->ModelName() == "RADIAL")) {
+    // Set camera focal length to one so can normalize properly
+    // todo also mb set distortion to zero
+    Camera scaled_camera = *camera;
+    const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
+    for (const size_t idx : focal_length_idxs) {
+      scaled_camera.Params(idx) = 1;
+    }
 
     //  Normalize image coordinates with current camera hypothesis.
-      std::vector<Eigen::Vector2d> points2D_N(points2D.size());
-      for (size_t i = 0; i < points2D.size(); ++i) {
-        points2D_N[i] = scaled_camera.ImageToWorld(points2D[i]);
+    std::vector<Eigen::Vector2d> points2D_N(points2D.size());
+    for (size_t i = 0; i < points2D.size(); ++i) {
+      points2D_N[i] = scaled_camera.ImageToWorld(points2D[i]);
+    }
+
+    if (options.pose_algo == 35) {
+      std::cout << "Using P3.5Pf solver\n";
+      AbsolutePoseRANSAC_p35pf ransac(options.ransac_options);
+      AbsolutePoseRANSAC_p35pf::Report report =
+          ransac.Estimate(points2D_N, points3D);
+
+      P35PfEstimator::M_t best_model;
+      *num_inliers = 0;
+      inlier_mask->clear();
+
+      if (report.success && report.support.num_inliers > *num_inliers) {
+        *num_inliers = report.support.num_inliers;
+        best_model = report.model;
+        *inlier_mask = report.inlier_mask;
+      }
+      //    std::ofstream fout;
+      //    fout.open("loransac_inliers_num_p35p.txt",
+      //              std::ofstream::out | std::ofstream::app);
+      //    fout << *num_inliers << " " << points2D.size() << "\n";
+      //    fout.close();
+
+      if (*num_inliers == 0) {
+        return false;
       }
 
-    std::cout << "Using P3.5Pf solver\n";
-    AbsolutePoseRANSAC_pnpf ransac(options.ransac_options);
-    AbsolutePoseRANSAC_pnpf::Report report = ransac.Estimate(points2D_N, points3D);
+      // Set output camera with best estimated focal length.
 
-    P35PfEstimator::M_t best_model;
-    *num_inliers = 0;
-    inlier_mask->clear();
-
-    if (report.success && report.support.num_inliers > *num_inliers) {
-      *num_inliers = report.support.num_inliers;
-      best_model = report.model;
-      *inlier_mask = report.inlier_mask;
-     // std::cout << "Estimated focal distance: " << best_model.f << std::endl;
-    }
-    //std::cout << "Number of inliers: " << *num_inliers << std::endl;
-    if (*num_inliers == 0) {
-      return false;
-    }
-
-    // Set output camera with best estimated focal length.
-
-    if (*num_inliers > 0) {
-      const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
-      for (const size_t idx : focal_length_idxs) {
-        camera->Params(idx) = best_model.f;
+      if (*num_inliers > 0) {
+        const std::vector<size_t>& focal_length_idxs =
+            camera->FocalLengthIdxs();
+        for (const size_t idx : focal_length_idxs) {
+          camera->Params(idx) = best_model.f;
+        }
       }
+
+      // Extract pose parameters.
+      *qvec = RotationMatrixToQuaternion(best_model.R);
+      *tvec = best_model.T;
+
+      //    fout.open("before_ba_p45p.txt",
+      //              std::ofstream::out | std::ofstream::app);
+      //    fout << qvec->transpose() << "\n" << tvec->transpose() << "\n";
+      //    fout.close();
+
+    } else {
+      std::cout << "Using P4Pf solver\n";
+      AbsolutePoseRANSAC_p4pf ransac(options.ransac_options);
+      AbsolutePoseRANSAC_p4pf::Report report =
+          ransac.Estimate(points2D_N, points3D);
+
+      P4PfEstimator::M_t best_model;
+      *num_inliers = 0;
+      inlier_mask->clear();
+
+      if (report.success && report.support.num_inliers > *num_inliers) {
+        *num_inliers = report.support.num_inliers;
+        best_model = report.model;
+        *inlier_mask = report.inlier_mask;
+      }
+      //    std::ofstream fout;
+      //    fout.open("loransac_inliers_num_p4p.txt",
+      //              std::ofstream::out | std::ofstream::app);
+      //    fout << *num_inliers << " " << points2D.size() << "\n";
+      //    fout.close();
+
+      if (*num_inliers == 0) {
+        return false;
+      }
+
+      // Set output camera with best estimated focal length.
+
+      if (*num_inliers > 0) {
+        const std::vector<size_t>& focal_length_idxs =
+            camera->FocalLengthIdxs();
+        for (const size_t idx : focal_length_idxs) {
+          camera->Params(idx) = best_model.f;
+        }
+      }
+
+      // Extract pose parameters.
+      *qvec = RotationMatrixToQuaternion(best_model.R);
+      *tvec = best_model.T;
+
+      //    fout.open("before_ba_p4p.txt",
+      //              std::ofstream::out | std::ofstream::app);
+      //    fout << qvec->transpose() << "\n" << tvec->transpose() << "\n";
+      //    fout.close();
     }
 
-//    std::ofstream fout;
-//    fout.open("mycolmap_f.txt", std::ofstream::out | std::ofstream::app);
-//    if(fout) std::cout << "File opend OK!\n";
-//    else std::cout << "Could not open file :C\n";
-//    fout << best_model.f << std::endl;
-//    fout.close();
-
-//    fout.open("mycolmap_R.txt", std::ofstream::out | std::ofstream::app);
-//    fout << best_model.R << std::endl;
-//    fout.close();
-
-//    fout.open("mycolmap_C.txt", std::ofstream::out | std::ofstream::app);
-//    fout << best_model.C << std::endl;
-//    fout.close();
-
-
-    // Extract pose parameters.
-    *qvec = RotationMatrixToQuaternion(best_model.R);
-    *tvec = best_model.T;
-
-  }
-  else {
+  } else {
+    std::cout << "Using regular colmap solver\n";
     std::vector<double> focal_length_factors;
     if (options.estimate_focal_length) {
       // Generate focal length factors using a quadratic function,
@@ -214,6 +257,11 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
         focal_length_factor = focal_length_factors[i];
       }
     }
+    //    std::ofstream fout;
+    //    fout.open("loransac_check_p3p.txt", std::ofstream::out |
+    //    std::ofstream::app); fout <<
+    //    "===============================================================\n";
+    //    fout.close();
 
     if (*num_inliers == 0) {
       return false;
@@ -231,7 +279,11 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
     *qvec = RotationMatrixToQuaternion(proj_matrix.leftCols<3>());
     *tvec = proj_matrix.rightCols<1>();
   }
-
+//  auto nd = std::chrono::high_resolution_clock::now();
+//  auto duration =
+//      std::chrono::duration_cast<std::chrono::microseconds>(nd - bg).count();
+//  fout_t << duration << "\n";
+//  fout_t.close();
   if (IsNaN(*qvec) || IsNaN(*tvec)) {
     return false;
   }

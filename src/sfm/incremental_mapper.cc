@@ -93,6 +93,7 @@ bool IncrementalMapper::Options::Check() const {
   CHECK_OPTION_GE(filter_max_reproj_error, 0.0);
   CHECK_OPTION_GE(filter_min_tri_angle, 0.0);
   CHECK_OPTION_GE(max_reg_trials, 1);
+  //todo add pose_algo in {3, 4, 35}
   return true;
 }
 
@@ -443,6 +444,7 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   abs_pose_options.ransac_options.max_error = options.abs_pose_max_error;
   abs_pose_options.ransac_options.min_inlier_ratio =
       options.abs_pose_min_inlier_ratio;
+  abs_pose_options.pose_algo = options.pose_algo;
   // Use high confidence to avoid preemptive termination of P3P RANSAC
   // - too early termination may lead to bad registration.
   abs_pose_options.ransac_options.min_num_trials = 100;
