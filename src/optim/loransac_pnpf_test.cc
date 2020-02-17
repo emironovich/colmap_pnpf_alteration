@@ -120,13 +120,13 @@ BOOST_AUTO_TEST_CASE(TestP35PLORANSAC) {
 
   //Test if correct focal length has been found.
   const double f_diff = abs(f - (report.model).f) / f;
-  BOOST_CHECK(f_diff < 1e-2);
+  BOOST_CHECK(f_diff < 1e-6);
 
   // Test if correct rotation has been determined.
   const double R_diff = (R - (report.model).R).norm()/ 3;
-  BOOST_CHECK(R_diff < 1e-2);
+  BOOST_CHECK(R_diff < 1e-4);
 
   // Test if correct translation has been determined.
   const double T_diff = (-R*C - (report.model).T).norm();
-  BOOST_CHECK(T_diff < 1e-1);
+  BOOST_CHECK(T_diff < 1e-3);
 }

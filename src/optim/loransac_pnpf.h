@@ -68,9 +68,6 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
     const std::vector<typename P35PfEstimator::X_t>& X,
     const std::vector<typename P35PfEstimator::Y_t>& Y) {
   CHECK_EQ(X.size(), Y.size());
-  //  std::ofstream fout;
-  //  fout.open("loransac_check.txt", std::ofstream::out | std::ofstream::app);
-  //  fout << "Using P3.5Pf+EPNP LORANSAC\n";
   const size_t num_samples = X.size();
 
   typename RANSAC<P35PfEstimator, SupportMeasurer, Sampler>::Report report;
@@ -143,8 +140,7 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
           for (size_t i = 0; i < residuals.size(); ++i) {
             X_normalized[i] = X[i] / best_model.f;
             if (residuals[i] <= max_residual) {
-              X_inlier.push_back(
-                  X_normalized[i]);  // todo can calibrate by focal length here
+              X_inlier.push_back(X_normalized[i]);
               Y_inlier.push_back(Y[i]);
             }
           }
@@ -152,25 +148,17 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
           const std::vector<typename LocalEstimator::M_t> local_models =
               local_estimator.Estimate(X_inlier, Y_inlier);
 
-          //          fout << "Local models num: " << local_models.size() <<
-          //          "\n";
-
           for (const auto& local_model : local_models) {
             local_estimator.Residuals(X_normalized, Y, local_model, &residuals);
             CHECK_EQ(residuals.size(), X.size());
 
             const auto local_support =
                 support_measurer.Evaluate(residuals, max_residual);
-            //            fout << "Best model inliers: " <<
-            //            best_support.num_inliers << "\n"; fout << "Local model
-            //            inliers: " << local_support.num_inliers
-            //                 << "\n";
 
             // Check if non-locally optimized model is better.
             if (support_measurer.Compare(local_support, best_support)) {
-              //              fout << "Locally optimized model is better\n";
               best_support = local_support;
-              best_model.R = local_model.leftCols(3);  // todo check
+              best_model.R = local_model.leftCols(3);
               best_model.T = local_model.rightCols(1);
               best_model_is_local = true;
             }
@@ -190,8 +178,6 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
       }
     }
   }
-  //  fout << "FINAL INLIERS COUNT: " << best_support.num_inliers << "\n";
-  //  fout.close();
 
   report.support = best_support;
   report.model = best_model;

@@ -91,10 +91,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           Eigen::Vector4d* qvec, Eigen::Vector3d* tvec,
                           Camera* camera, size_t* num_inliers,
                           std::vector<char>* inlier_mask) {
-//  std::ofstream fout_t;
-//  fout_t.open("time_p35p.txt", std::ofstream::out | std::ofstream::app);
-//  auto bg = std::chrono::high_resolution_clock::now();
-
   options.Check();
 
   if (options.estimate_focal_length &&
@@ -132,11 +128,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
         best_model = report.model;
         *inlier_mask = report.inlier_mask;
       }
-      //    std::ofstream fout;
-      //    fout.open("loransac_inliers_num_p35p.txt",
-      //              std::ofstream::out | std::ofstream::app);
-      //    fout << *num_inliers << " " << points2D.size() << "\n";
-      //    fout.close();
 
       if (*num_inliers == 0) {
         return false;
@@ -155,11 +146,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
       // Extract pose parameters.
       *qvec = RotationMatrixToQuaternion(best_model.R);
       *tvec = best_model.T;
-
-      //    fout.open("before_ba_p45p.txt",
-      //              std::ofstream::out | std::ofstream::app);
-      //    fout << qvec->transpose() << "\n" << tvec->transpose() << "\n";
-      //    fout.close();
 
     } else {
       std::cout << "Using P4Pf solver\n";
@@ -176,11 +162,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
         best_model = report.model;
         *inlier_mask = report.inlier_mask;
       }
-      //    std::ofstream fout;
-      //    fout.open("loransac_inliers_num_p4p.txt",
-      //              std::ofstream::out | std::ofstream::app);
-      //    fout << *num_inliers << " " << points2D.size() << "\n";
-      //    fout.close();
 
       if (*num_inliers == 0) {
         return false;
@@ -199,11 +180,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
       // Extract pose parameters.
       *qvec = RotationMatrixToQuaternion(best_model.R);
       *tvec = best_model.T;
-
-      //    fout.open("before_ba_p4p.txt",
-      //              std::ofstream::out | std::ofstream::app);
-      //    fout << qvec->transpose() << "\n" << tvec->transpose() << "\n";
-      //    fout.close();
     }
 
   } else {
@@ -257,11 +233,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
         focal_length_factor = focal_length_factors[i];
       }
     }
-    //    std::ofstream fout;
-    //    fout.open("loransac_check_p3p.txt", std::ofstream::out |
-    //    std::ofstream::app); fout <<
-    //    "===============================================================\n";
-    //    fout.close();
 
     if (*num_inliers == 0) {
       return false;
@@ -279,11 +250,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
     *qvec = RotationMatrixToQuaternion(proj_matrix.leftCols<3>());
     *tvec = proj_matrix.rightCols<1>();
   }
-//  auto nd = std::chrono::high_resolution_clock::now();
-//  auto duration =
-//      std::chrono::duration_cast<std::chrono::microseconds>(nd - bg).count();
-//  fout_t << duration << "\n";
-//  fout_t.close();
   if (IsNaN(*qvec) || IsNaN(*tvec)) {
     return false;
   }
