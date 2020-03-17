@@ -282,7 +282,7 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
   fout.close();
 
   fout.open("inliers_ratio.txt", std::ofstream::out | std::ofstream::app);
-  fout << (*num_inliers) / points3D.size() << "\n";
+  fout << double(*num_inliers) / points3D.size() << "\n";
   fout.close();
 
   return true;
