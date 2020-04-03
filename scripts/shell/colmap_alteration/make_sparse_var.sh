@@ -10,8 +10,6 @@
  DATASET_PATH=$1
  OUTPUT_PATH=$2
 
- rm *.txt
-
  ./colmap exhaustive_matcher \
    --database_path $DATASET_PATH/database.db
 
