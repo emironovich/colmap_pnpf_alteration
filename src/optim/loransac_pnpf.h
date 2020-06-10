@@ -149,7 +149,13 @@ LORANSAC<P35PfEstimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
               local_estimator.Estimate(X_inlier, Y_inlier);
 
           for (const auto& local_model : local_models) {
-            local_estimator.Residuals(X_normalized, Y, local_model, &residuals);
+            P35PfEstimator::M_t local_model_rt_format;
+            local_model_rt_format.f = best_model.f;
+            local_model_rt_format.R = local_model.leftCols(3);
+            local_model_rt_format.T = local_model.rightCols(1);
+
+            estimator.Residuals(X, Y, local_model_rt_format, &residuals);
+            // local_estimator.Residuals(X_normalized, Y, local_model, &residuals);
             CHECK_EQ(residuals.size(), X.size());
 
             const auto local_support =
