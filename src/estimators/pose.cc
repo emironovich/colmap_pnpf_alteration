@@ -40,6 +40,7 @@
 #include "estimators/essential_matrix.h"
 #include "optim/bundle_adjustment.h"
 #include "optim/loransac_pnpf.h"
+#include "optim/loransac.h"
 #include "optim/ransac.h"
 #include "util/matrix.h"
 #include "util/misc.h"
@@ -53,8 +54,8 @@ namespace {
 
 typedef LORANSAC<P3PEstimator, EPNPEstimator> AbsolutePoseRANSAC;
 // typedef RANSAC<P35PfEstimator> AbsolutePoseRANSAC_pnpf;
-typedef LORANSAC<P35PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p35pf;
-typedef LORANSAC<P4PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p4pf;
+typedef LORANSAC_PnPf<P35PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p35pf;
+typedef LORANSAC_PnPf<P4PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p4pf;
 
 void EstimateAbsolutePoseKernel(const Camera& camera,
                                 const double focal_length_factor,

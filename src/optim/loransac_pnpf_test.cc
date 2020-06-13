@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE(TestP35PLORANSAC) {
   // Robustly estimate transformation using RANSAC.
   RANSACOptions options;
   options.max_error = 1;
-  LORANSAC<P35PfEstimator, EPNPEstimator> ransac(options);
+  LORANSAC_PnPf<P35PfEstimator, EPNPEstimator> ransac(options);
   const auto report = ransac.Estimate(points2D, points3D);
 
   BOOST_CHECK_EQUAL(report.success, true);
