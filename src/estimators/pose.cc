@@ -53,9 +53,9 @@ namespace colmap {
 namespace {
 
 typedef LORANSAC<P3PEstimator, EPNPEstimator> AbsolutePoseRANSAC;
-// typedef RANSAC<P35PfEstimator> AbsolutePoseRANSAC_pnpf;
 typedef LORANSAC_PnPf<P35PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p35pf;
 typedef LORANSAC_PnPf<P4PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p4pf;
+
 
 void EstimateAbsolutePoseKernel(const Camera& camera,
                                 const double focal_length_factor,
@@ -76,7 +76,7 @@ void EstimateAbsolutePoseKernel(const Camera& camera,
     points2D_N[i] = scaled_camera.ImageToWorld(points2D[i]);
   }
 
-  // Estimate pose for given focal length.
+  // Estimate pose for given focal length
   auto custom_options = options;
   custom_options.max_error =
       scaled_camera.ImageToWorldThreshold(options.max_error);
@@ -92,6 +92,9 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           Eigen::Vector4d* qvec, Eigen::Vector3d* tvec,
                           Camera* camera, size_t* num_inliers,
                           std::vector<char>* inlier_mask) {
+
+  auto bg = std::chrono::high_resolution_clock::now();
+
   options.Check();
 
   if (options.estimate_focal_length &&
@@ -254,6 +257,30 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
   if (IsNaN(*qvec) || IsNaN(*tvec)) {
     return false;
   }
+
+  // write benching results
+  auto nd = std::chrono::high_resolution_clock::now();
+
+  std::ofstream fout;
+
+  fout.open("pose_time.txt", std::ofstream::out | std::ofstream::app);
+  auto duration =
+      std::chrono::duration_cast<std::chrono::microseconds>(nd - bg).count();
+  fout << duration << "\n";
+  fout.close();
+
+  fout.open("before_ba.txt", std::ofstream::out | std::ofstream::app);
+  fout << camera->CameraId() << " ";
+  const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
+  for (const size_t idx : focal_length_idxs) {
+    fout << camera->Params(idx) << " ";
+  }
+  fout << "\n" << qvec->transpose() << " " << tvec->transpose() << "\n";
+  fout.close();
+
+  fout.open("inliers_ratio.txt", std::ofstream::out | std::ofstream::app);
+  fout << (*num_inliers) / points3D.size() << "\n";
+  fout.close();
 
   return true;
 }
