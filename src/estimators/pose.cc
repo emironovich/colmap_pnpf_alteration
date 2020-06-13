@@ -93,7 +93,7 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           Camera* camera, size_t* num_inliers,
                           std::vector<char>* inlier_mask) {
 
-  auto bg = std::chrono::high_resolution_clock::now();
+  auto bg = std::chrono::steady_clock::now();
 
   options.Check();
 
@@ -259,13 +259,13 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
   }
 
   // write benching results
-  auto nd = std::chrono::high_resolution_clock::now();
+  auto nd = std::chrono::steady_clock::now();
 
   std::ofstream fout;
 
   fout.open("pose_time.txt", std::ofstream::out | std::ofstream::app);
   auto duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(nd - bg).count();
+      std::chrono::duration_cast<std::chrono::nanoseconds>(nd - bg).count();
   fout << duration << "\n";
   fout.close();
 
@@ -279,7 +279,7 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
   fout.close();
 
   fout.open("inliers_ratio.txt", std::ofstream::out | std::ofstream::app);
-  fout << (*num_inliers) / points3D.size() << "\n";
+  fout << double(*num_inliers) / points3D.size() << "\n";
   fout.close();
 
   return true;
