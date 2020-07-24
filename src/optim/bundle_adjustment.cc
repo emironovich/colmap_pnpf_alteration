@@ -32,12 +32,12 @@
 #include "optim/bundle_adjustment.h"
 
 #include <iomanip>
-#include <cmath>
 
 #ifdef OPENMP_ENABLED
 #include <omp.h>
 #endif
 
+#include "base/fov.h"
 #include "base/camera_models.h"
 #include "base/cost_functions.h"
 #include "base/projection.h"
@@ -69,6 +69,7 @@ ceres::LossFunction* BundleAdjustmentOptions::CreateLossFunction() const {
 }
 
 bool BundleAdjustmentOptions::Check() const {
+  fov_options.Check();
   CHECK_OPTION_GE(loss_function_scale, 0);
   return true;
 }
@@ -497,20 +498,18 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
         const std::vector<size_t>& params_idxs = camera.FocalLengthIdxs();
         const_camera_params.insert(const_camera_params.end(),
                                    params_idxs.begin(), params_idxs.end());
-      } else if (options_.check_fov) {
-        const double pi = 3.14159265;
-        double u_angle = options_.upper_fov_bound_degrees * pi / 180;
-        double l_angle = options_.lower_fov_bound_degrees * pi / 180;
-        double half_diag =
-            sqrt(pow(camera.Width(), 2) + pow(camera.Height(), 2)) / 2;
+      } else if (options_.fov_options.check_fov) {
 
-        double u_bound = half_diag / tan(l_angle / 2);
-        double l_bound = half_diag / tan(u_angle / 2);
+        double half_diag = HalfDiag(camera);
+        double max_focal_length =
+            FOV2FocalLength(half_diag, options_.fov_options.min_degrees);
+        double min_focal_length =
+            FOV2FocalLength(half_diag, options_.fov_options.max_degrees);
 
         const std::vector<size_t>& focal_length_idxs = camera.FocalLengthIdxs();
         for (const size_t idx : focal_length_idxs) {
-          problem_->SetParameterUpperBound(camera.ParamsData(), idx, u_bound);
-          problem_->SetParameterLowerBound(camera.ParamsData(), idx, l_bound);
+          problem_->SetParameterUpperBound(camera.ParamsData(), idx, max_focal_length);
+          problem_->SetParameterLowerBound(camera.ParamsData(), idx, min_focal_length);
         }
       }
       if (!options_.refine_principal_point) {

@@ -38,6 +38,7 @@
 
 #include <ceres/ceres.h>
 
+#include "base/fov.h"
 #include "base/camera.h"
 #include "base/camera_models.h"
 #include "optim/loransac.h"
@@ -66,12 +67,15 @@ struct AbsolutePoseEstimationOptions {
   // Number of threads for parallel estimation of focal length.
   int num_threads = ThreadPool::kMaxNumThreads;
 
-  // Which pose estimation algorithm to use: P3P, P3.5PF or P4Pf.
+  // Which pose estimation algorithm to use: P3P, P3.5Pf or P4Pf.
   // 3, 35 or 4 respectively
   int pose_algo = 3;
 
-  // Options used for P3P RANSAC.
+  // Options used for P3P, P3.5Pf or P4Pf RANSAC.
   RANSACOptions ransac_options;
+
+  // Options used for P3.5Pf or P4Pf Estimators.
+  FOVOptions fov_options;
 
   void Check() const {
     CHECK_GT(num_focal_length_samples, 0);
@@ -79,6 +83,7 @@ struct AbsolutePoseEstimationOptions {
     CHECK_GT(max_focal_length_ratio, 0);
     CHECK_LT(min_focal_length_ratio, max_focal_length_ratio);
     ransac_options.Check();
+    fov_options.Check();
   }
 };
 

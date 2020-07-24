@@ -14,6 +14,7 @@
 #include "util/alignment.h"
 #include "util/types.h"
 
+#include "base/fov.h"
 #include "absolute_pose_pnpf.h"
 #include "util/logging.h"
 //#include "util/types.h"
@@ -23,6 +24,18 @@
 #include <utility>
 
 namespace colmap {
+
+struct PnPfEstimatorOptions {
+  FOVOptions fov_options;
+  double half_diag = -1;
+
+  void Check() const {
+    fov_options.Check();
+    if (fov_options.check_fov) {
+      CHECK_GT(half_diag, 0);
+    }
+  }
+};
 
 template <class Estimator>
 class PnPfEstimator {
@@ -40,9 +53,6 @@ class PnPfEstimator {
 
   // The minimum number of samples needed to estimate a model.
   static const int kMinNumSamples = 4;
-  static const int upper_fov_bound_degrees = 120;
-  static const int lower_fov_bound_degrees = 60;
-  static const bool check_fov = false;
 
   // Estimate solutions of the P3.5Pf problem from a set of four 2D-3D point
   // correspondences.
@@ -58,9 +68,10 @@ class PnPfEstimator {
   //                   Number of solutions is not greater than 10.
   static std::vector<M_t> Estimate(const std::vector<X_t>& points2D,
                                    const std::vector<Y_t>& points3D,
-                                   double half_diag) {
+                                   PnPfEstimatorOptions options) {
     CHECK_EQ(points2D.size(), 4);
     CHECK_EQ(points3D.size(), 4);
+    options.Check();
 
     Eigen::Matrix3x4d points3D_world;
     points3D_world.col(0) = points3D[0];
@@ -81,14 +92,12 @@ class PnPfEstimator {
     Eigen::Vector3d Cs[max_solutions];
     Estimator::solve(points3D_world, points2D_world, &n, fs, Rs, Cs);
 
-    const double pi = 3.14159265;
     int fov_ok_idx[n];
     int fov_ok_num = 0;
     double fov;
     for (int i = 0; i < n; ++i) {
-      fov = 2 * atan(half_diag / fs[i]) * 180 / pi;
-      if (!check_fov ||
-          (lower_fov_bound_degrees < fov && fov < upper_fov_bound_degrees)) {
+      fov = FindFOV(options.half_diag, fs[i]);
+      if (options.fov_options.CorrectFOV(fov)) {
         fov_ok_idx[fov_ok_num] = i;
         fov_ok_num++;
       }

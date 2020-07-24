@@ -445,7 +445,6 @@ void OptionManager::AddMapperOptions() {
     return;
   }
   added_mapper_options_ = true;
-  AddAndRegisterDefaultOption("Mapper.pose_algo", &mapper->pose_algo);
   AddAndRegisterDefaultOption("Mapper.min_num_matches",
                               &mapper->min_num_matches);
   AddAndRegisterDefaultOption("Mapper.ignore_watermarks",
@@ -503,6 +502,8 @@ void OptionManager::AddMapperOptions() {
                               &mapper->ba_local_max_refinements);
   AddAndRegisterDefaultOption("Mapper.ba_local_max_refinement_change",
                               &mapper->ba_local_max_refinement_change);
+  AddAndRegisterDefaultOption("Mapper.ba_fov_min", &mapper->ba_fov_min);
+  AddAndRegisterDefaultOption("Mapper.ba_fov_max", &mapper->ba_fov_max);
   AddAndRegisterDefaultOption("Mapper.snapshot_path", &mapper->snapshot_path);
   AddAndRegisterDefaultOption("Mapper.snapshot_images_freq",
                               &mapper->snapshot_images_freq);
@@ -526,6 +527,11 @@ void OptionManager::AddMapperOptions() {
                               &mapper->mapper.abs_pose_min_num_inliers);
   AddAndRegisterDefaultOption("Mapper.abs_pose_min_inlier_ratio",
                               &mapper->mapper.abs_pose_min_inlier_ratio);
+  AddAndRegisterDefaultOption("Mapper.abs_pose_algo", &mapper->pose_algo);
+  AddAndRegisterDefaultOption("Mapper.estimator_fov_min",
+                              &mapper->estimator_fov_min);
+  AddAndRegisterDefaultOption("Mapper.estimator_fov_max",
+                              &mapper->estimator_fov_max);
   AddAndRegisterDefaultOption("Mapper.filter_max_reproj_error",
                               &mapper->mapper.filter_max_reproj_error);
   AddAndRegisterDefaultOption("Mapper.filter_min_tri_angle",

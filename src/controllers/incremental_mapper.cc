@@ -202,6 +202,11 @@ IncrementalMapper::Options IncrementalMapperOptions::Mapper() const {
   options.local_ba_num_images = ba_local_num_images;
   options.fix_existing_images = fix_existing_images;
   options.pose_algo = pose_algo;
+  if (estimator_fov_min > 0 && estimator_fov_max > 0 &&
+      (pose_algo == 4 || pose_algo == 35)) {
+    options.estimator_fov_options =
+        FOVOptions(estimator_fov_min, estimator_fov_max);
+  }
   return options;
 }
 
@@ -236,6 +241,9 @@ BundleAdjustmentOptions IncrementalMapperOptions::LocalBundleAdjustment()
   options.loss_function_scale = 1.0;
   options.loss_function_type =
       BundleAdjustmentOptions::LossFunctionType::SOFT_L1;
+  if (ba_fov_min > 0 && ba_fov_max > 0) {
+    options.fov_options = FOVOptions(ba_fov_min, ba_fov_max);
+  }
   return options;
 }
 
@@ -260,6 +268,9 @@ BundleAdjustmentOptions IncrementalMapperOptions::GlobalBundleAdjustment()
         ba_min_num_residuals_for_multi_threading;
   options.loss_function_type =
       BundleAdjustmentOptions::LossFunctionType::TRIVIAL;
+  if (ba_fov_min > 0 && ba_fov_max > 0) {
+    options.fov_options = FOVOptions(ba_fov_min, ba_fov_max);
+  }
   return options;
 }
 

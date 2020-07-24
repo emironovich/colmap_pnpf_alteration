@@ -126,6 +126,8 @@ class IncrementalMapper {
     // 3, 35 or 4 respectively
     int pose_algo = 3;
 
+    FOVOptions estimator_fov_options;
+
     // Method to find and select next best image to register.
     enum class ImageSelectionMethod {
       MAX_VISIBLE_POINTS_NUM,

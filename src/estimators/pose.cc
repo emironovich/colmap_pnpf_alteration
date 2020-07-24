@@ -39,8 +39,8 @@
 #include "estimators/absolute_pose_pnpf.h"
 #include "estimators/essential_matrix.h"
 #include "optim/bundle_adjustment.h"
-#include "optim/loransac_pnpf.h"
 #include "optim/loransac.h"
+#include "optim/loransac_pnpf.h"
 #include "optim/ransac.h"
 #include "util/matrix.h"
 #include "util/misc.h"
@@ -55,7 +55,6 @@ namespace {
 typedef LORANSAC<P3PEstimator, EPNPEstimator> AbsolutePoseRANSAC;
 typedef LORANSAC_PnPf<P35PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p35pf;
 typedef LORANSAC_PnPf<P4PfEstimator, EPNPEstimator> AbsolutePoseRANSAC_p4pf;
-
 
 void EstimateAbsolutePoseKernel(const Camera& camera,
                                 const double focal_length_factor,
@@ -100,8 +99,10 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
        camera->ModelName() == "PINHOLE" ||
        camera->ModelName() == "SIMPLE_RADIAL" ||
        camera->ModelName() == "RADIAL")) {
-    double half_diag =
-        sqrt(pow(camera->Params(2), 2) + pow(camera->Params(3), 2));
+
+    PnPfEstimatorOptions estimator_options;
+    estimator_options.fov_options = options.fov_options;
+    estimator_options.half_diag = HalfDiag(*camera);
 
     // Set camera focal length to one so can normalize properly
     // todo also mb set distortion to zero
@@ -119,9 +120,10 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
 
     if (options.pose_algo == 35) {
       std::cout << "Using P3.5Pf solver\n";
-      AbsolutePoseRANSAC_p35pf ransac(options.ransac_options);
+      AbsolutePoseRANSAC_p35pf ransac(
+          {options.ransac_options, estimator_options});
       AbsolutePoseRANSAC_p35pf::Report report =
-          ransac.Estimate(points2D_N, points3D, half_diag);
+          ransac.Estimate(points2D_N, points3D);
 
       P35PfEstimator::M_t best_model;
       *num_inliers = 0;
@@ -153,9 +155,10 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
 
     } else {
       std::cout << "Using P4Pf solver\n";
-      AbsolutePoseRANSAC_p4pf ransac(options.ransac_options);
+      AbsolutePoseRANSAC_p4pf ransac(
+          {options.ransac_options, estimator_options});
       AbsolutePoseRANSAC_p4pf::Report report =
-          ransac.Estimate(points2D_N, points3D, half_diag);
+          ransac.Estimate(points2D_N, points3D);
 
       P4PfEstimator::M_t best_model;
       *num_inliers = 0;

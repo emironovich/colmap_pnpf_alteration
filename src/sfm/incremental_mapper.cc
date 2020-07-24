@@ -33,10 +33,11 @@
 
 #include <array>
 #include <fstream>
+#include <cmath>
 #include <string>
 #include <unordered_map>
-#include <cmath>
 
+#include "base/fov.h"
 #include "base/projection.h"
 #include "base/triangulation.h"
 #include "estimators/pose.h"
@@ -449,6 +450,7 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   abs_pose_options.ransac_options.min_inlier_ratio =
       options.abs_pose_min_inlier_ratio;
   abs_pose_options.pose_algo = options.pose_algo;
+  abs_pose_options.fov_options = options.estimator_fov_options;
   // Use high confidence to avoid preemptive termination of P3P RANSAC
   // - too early termination may lead to bad registration.
   abs_pose_options.ransac_options.min_num_trials = 100;
@@ -645,20 +647,21 @@ IncrementalMapper::AdjustLocalBundle(
     BundleAdjuster bundle_adjuster(ba_options, ba_config);
     bundle_adjuster.Solve(reconstruction_);
 
-    const double pi = 3.14159265;
     camera_t reg_camera_id = reconstruction_->Image(image_id).CameraId();
     const Camera& curr_camera = reconstruction_->Camera(reg_camera_id);
-    double half_diag =
-        sqrt(pow(curr_camera.Width(), 2) + pow(curr_camera.Height(), 2)) / 2;
+    double half_diag = HalfDiag(curr_camera);
 
-    double fov_x = 2 * atan(half_diag / curr_camera.Params(0)) * 180 / pi;
-    double fov_y = 2 * atan(half_diag / curr_camera.Params(1)) * 180 / pi;
+    bool bad_fov_flag = true;
 
-    double u_bound = P35PfEstimator::upper_fov_bound_degrees;
-    double l_bound = P35PfEstimator::lower_fov_bound_degrees;
+    const std::vector<size_t>& focal_length_idxs =
+        curr_camera.FocalLengthIdxs();
+    for (const size_t idx : focal_length_idxs) {
+      double fov = FindFOV(half_diag, curr_camera.Params(idx));
+      bad_fov_flag =
+          bad_fov_flag || !options.estimator_fov_options.CorrectFOV(fov);
+    }
 
-    if (ba_options.check_fov && (fov_x > u_bound || fov_x < l_bound ||
-                                 fov_y > u_bound || fov_y < l_bound)) {
+    if (ba_options.fov_options.check_fov && bad_fov_flag) {
       for (auto image_pair : changed_images) {
         Image& changed_image = reconstruction_->Image(image_pair.first);
         changed_image = image_pair.second;

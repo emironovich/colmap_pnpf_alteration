@@ -134,6 +134,11 @@ struct IncrementalMapperOptions {
   // 3, 35 or 4 respectively
   int pose_algo = 3;
 
+  int estimator_fov_min = -1;
+  int estimator_fov_max = -1;
+  int ba_fov_min = -1;
+  int ba_fov_max = -1;
+
   IncrementalMapper::Options Mapper() const;
   IncrementalTriangulator::Options Triangulation() const;
   BundleAdjustmentOptions LocalBundleAdjustment() const;
