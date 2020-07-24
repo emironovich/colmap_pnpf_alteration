@@ -651,17 +651,17 @@ IncrementalMapper::AdjustLocalBundle(
     const Camera& curr_camera = reconstruction_->Camera(reg_camera_id);
     double half_diag = HalfDiag(curr_camera);
 
-    bool bad_fov_flag = true;
+    bool good_fov_flag = true;
 
     const std::vector<size_t>& focal_length_idxs =
         curr_camera.FocalLengthIdxs();
     for (const size_t idx : focal_length_idxs) {
       double fov = FindFOV(half_diag, curr_camera.Params(idx));
-      bad_fov_flag =
-          bad_fov_flag || !options.estimator_fov_options.CorrectFOV(fov);
+      good_fov_flag =
+          good_fov_flag || !options.estimator_fov_options.CorrectFOV(fov);
     }
 
-    if (ba_options.fov_options.check_fov && bad_fov_flag) {
+    if (ba_options.fov_options.check_fov && !good_fov_flag) {
       for (auto image_pair : changed_images) {
         Image& changed_image = reconstruction_->Image(image_pair.first);
         changed_image = image_pair.second;
