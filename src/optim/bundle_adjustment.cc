@@ -32,6 +32,7 @@
 #include "optim/bundle_adjustment.h"
 
 #include <iomanip>
+#include <cmath>
 
 #ifdef OPENMP_ENABLED
 #include <omp.h>
@@ -496,6 +497,21 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
         const std::vector<size_t>& params_idxs = camera.FocalLengthIdxs();
         const_camera_params.insert(const_camera_params.end(),
                                    params_idxs.begin(), params_idxs.end());
+      } else if (options_.check_fov) {
+        const double pi = 3.14159265;
+        double u_angle = options_.upper_fov_bound_degrees * pi / 180;
+        double l_angle = options_.lower_fov_bound_degrees * pi / 180;
+        double half_diag =
+            sqrt(pow(camera.Width(), 2) + pow(camera.Height(), 2)) / 2;
+
+        double u_bound = half_diag / tan(l_angle / 2);
+        double l_bound = half_diag / tan(u_angle / 2);
+
+        const std::vector<size_t>& focal_length_idxs = camera.FocalLengthIdxs();
+        for (const size_t idx : focal_length_idxs) {
+          problem_->SetParameterUpperBound(camera.ParamsData(), idx, u_bound);
+          problem_->SetParameterLowerBound(camera.ParamsData(), idx, l_bound);
+        }
       }
       if (!options_.refine_principal_point) {
         const std::vector<size_t>& params_idxs = camera.PrincipalPointIdxs();

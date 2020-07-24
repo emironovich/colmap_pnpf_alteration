@@ -46,7 +46,7 @@
 #include "util/misc.h"
 #include "util/threading.h"
 #include <chrono>
-#include <fstream>
+#include <cmath>
 #include <iostream>
 
 namespace colmap {
@@ -92,9 +92,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           Eigen::Vector4d* qvec, Eigen::Vector3d* tvec,
                           Camera* camera, size_t* num_inliers,
                           std::vector<char>* inlier_mask) {
-
-  auto bg = std::chrono::steady_clock::now();
-
   options.Check();
 
   if (options.estimate_focal_length &&
@@ -103,6 +100,9 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
        camera->ModelName() == "PINHOLE" ||
        camera->ModelName() == "SIMPLE_RADIAL" ||
        camera->ModelName() == "RADIAL")) {
+    double half_diag =
+        sqrt(pow(camera->Params(2), 2) + pow(camera->Params(3), 2));
+
     // Set camera focal length to one so can normalize properly
     // todo also mb set distortion to zero
     Camera scaled_camera = *camera;
@@ -121,7 +121,7 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
       std::cout << "Using P3.5Pf solver\n";
       AbsolutePoseRANSAC_p35pf ransac(options.ransac_options);
       AbsolutePoseRANSAC_p35pf::Report report =
-          ransac.Estimate(points2D_N, points3D);
+          ransac.Estimate(points2D_N, points3D, half_diag);
 
       P35PfEstimator::M_t best_model;
       *num_inliers = 0;
@@ -155,7 +155,7 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
       std::cout << "Using P4Pf solver\n";
       AbsolutePoseRANSAC_p4pf ransac(options.ransac_options);
       AbsolutePoseRANSAC_p4pf::Report report =
-          ransac.Estimate(points2D_N, points3D);
+          ransac.Estimate(points2D_N, points3D, half_diag);
 
       P4PfEstimator::M_t best_model;
       *num_inliers = 0;
@@ -257,30 +257,6 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
   if (IsNaN(*qvec) || IsNaN(*tvec)) {
     return false;
   }
-
-  // write benching results
-  auto nd = std::chrono::steady_clock::now();
-
-  std::ofstream fout;
-
-  fout.open("pose_time.txt", std::ofstream::out | std::ofstream::app);
-  auto duration =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(nd - bg).count();
-  fout << duration << "\n";
-  fout.close();
-
-  fout.open("before_ba.txt", std::ofstream::out | std::ofstream::app);
-  fout << camera->CameraId() << " ";
-  const std::vector<size_t>& focal_length_idxs = camera->FocalLengthIdxs();
-  for (const size_t idx : focal_length_idxs) {
-    fout << camera->Params(idx) << " ";
-  }
-  fout << "\n" << qvec->transpose() << " " << tvec->transpose() << "\n";
-  fout.close();
-
-  fout.open("inliers_ratio.txt", std::ofstream::out | std::ofstream::app);
-  fout << double(*num_inliers) / points3D.size() << "\n";
-  fout.close();
 
   return true;
 }

@@ -74,9 +74,10 @@ void AdjustGlobalBundle(const IncrementalMapperOptions& options,
   }
 }
 
-void IterativeLocalRefinement(const IncrementalMapperOptions& options,
+bool IterativeLocalRefinement(const IncrementalMapperOptions& options,
                               const image_t image_id,
                               IncrementalMapper* mapper) {
+  bool result_successful = false;
   auto ba_options = options.LocalBundleAdjustment();
   for (int i = 0; i < options.ba_local_max_refinements; ++i) {
     const auto report = mapper->AdjustLocalBundle(
@@ -94,6 +95,8 @@ void IterativeLocalRefinement(const IncrementalMapperOptions& options,
         static_cast<double>(report.num_adjusted_observations);
     std::cout << StringPrintf("  => Changed observations: %.6f", changed)
               << std::endl;
+    result_successful = result_successful || report.success;
+
     if (changed < options.ba_local_max_refinement_change) {
       break;
     }
@@ -102,6 +105,7 @@ void IterativeLocalRefinement(const IncrementalMapperOptions& options,
         BundleAdjustmentOptions::LossFunctionType::TRIVIAL;
   }
   mapper->ClearModifiedPoints3D();
+  return result_successful;
 }
 
 void IterativeGlobalRefinement(const IncrementalMapperOptions& options,
@@ -253,7 +257,7 @@ BundleAdjustmentOptions IncrementalMapperOptions::GlobalBundleAdjustment()
   options.refine_principal_point = ba_refine_principal_point;
   options.refine_extra_params = ba_refine_extra_params;
   options.min_num_residuals_for_multi_threading =
-	  ba_min_num_residuals_for_multi_threading;
+        ba_min_num_residuals_for_multi_threading;
   options.loss_function_type =
       BundleAdjustmentOptions::LossFunctionType::TRIVIAL;
   return options;
@@ -267,7 +271,7 @@ IncrementalMapperOptions::ParallelGlobalBundleAdjustment() const {
   options.gpu_index = ba_global_pba_gpu_index;
   options.num_threads = num_threads;
   options.min_num_residuals_for_multi_threading =
-	  ba_min_num_residuals_for_multi_threading;
+      ba_min_num_residuals_for_multi_threading;
   return options;
 }
 
@@ -527,8 +531,10 @@ void IncrementalMapperController::Reconstruct(
 
         if (reg_next_success) {
           TriangulateImage(*options_, next_image, &mapper);
-          IterativeLocalRefinement(*options_, next_image_id, &mapper);
+        }
 
+        if (reg_next_success &&
+            IterativeLocalRefinement(*options_, next_image_id, &mapper)) {
           if (reconstruction.NumRegImages() >=
                   options_->ba_global_images_ratio * ba_prev_num_reg_images ||
               reconstruction.NumRegImages() >=
@@ -558,6 +564,7 @@ void IncrementalMapperController::Reconstruct(
 
           break;
         } else {
+          reg_next_success = false;
           std::cout << "  => Could not register, trying another image."
                     << std::endl;
 

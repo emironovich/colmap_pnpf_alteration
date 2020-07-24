@@ -41,7 +41,8 @@ class LORANSAC_PnPf : public RANSAC<Estimator, SupportMeasurer, Sampler> {
   //
   // @return               The report with the results of the estimation.
   Report Estimate(const std::vector<typename Estimator::X_t>& X,
-                  const std::vector<typename Estimator::Y_t>& Y);
+                  const std::vector<typename Estimator::Y_t>& Y,
+                  double half_diag);
 
   // Objects used in RANSAC procedure.
   using RANSAC<Estimator, SupportMeasurer, Sampler>::estimator;
@@ -63,12 +64,13 @@ LORANSAC_PnPf<Estimator, LocalEstimator, SupportMeasurer,
               Sampler>::LORANSAC_PnPf(const RANSACOptions& options)
     : RANSAC<Estimator, SupportMeasurer, Sampler>(options) {}
 
-template <typename Estimator, typename LocalEstimator, typename SupportMeasurer, typename Sampler>
+template <typename Estimator, typename LocalEstimator, typename SupportMeasurer,
+          typename Sampler>
 typename LORANSAC_PnPf<Estimator, LocalEstimator, SupportMeasurer,
                        Sampler>::Report
 LORANSAC_PnPf<Estimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
     const std::vector<typename Estimator::X_t>& X,
-    const std::vector<typename Estimator::Y_t>& Y) {
+    const std::vector<typename Estimator::Y_t>& Y, double half_diag) {
   CHECK_EQ(X.size(), Y.size());
   const size_t num_samples = X.size();
 
@@ -115,7 +117,7 @@ LORANSAC_PnPf<Estimator, LocalEstimator, SupportMeasurer, Sampler>::Estimate(
 
     // Estimate model for current subset.
     const std::vector<typename Estimator::M_t> sample_models =
-        estimator.Estimate(X_rand, Y_rand);
+        estimator.Estimate(X_rand, Y_rand, half_diag);
 
     // Iterate through all estimated models
     for (const auto& sample_model : sample_models) {

@@ -6,6 +6,7 @@
 #define COLMAP_ABSOLUTE_POSE_PNPF_H
 
 #include <array>
+#include <cmath>
 #include <vector>
 
 #include <Eigen/Core>
@@ -39,6 +40,9 @@ class PnPfEstimator {
 
   // The minimum number of samples needed to estimate a model.
   static const int kMinNumSamples = 4;
+  static const int upper_fov_bound_degrees = 120;
+  static const int lower_fov_bound_degrees = 60;
+  static const bool check_fov = false;
 
   // Estimate solutions of the P3.5Pf problem from a set of four 2D-3D point
   // correspondences.
@@ -53,7 +57,8 @@ class PnPfEstimator {
   // @return           Vector of solutions for estimated parameters: {f, R, T}.
   //                   Number of solutions is not greater than 10.
   static std::vector<M_t> Estimate(const std::vector<X_t>& points2D,
-                                   const std::vector<Y_t>& points3D) {
+                                   const std::vector<Y_t>& points3D,
+                                   double half_diag) {
     CHECK_EQ(points2D.size(), 4);
     CHECK_EQ(points3D.size(), 4);
 
@@ -76,11 +81,25 @@ class PnPfEstimator {
     Eigen::Vector3d Cs[max_solutions];
     Estimator::solve(points3D_world, points2D_world, &n, fs, Rs, Cs);
 
+    const double pi = 3.14159265;
+    int fov_ok_idx[n];
+    int fov_ok_num = 0;
+    double fov;
+    for (int i = 0; i < n; ++i) {
+      fov = 2 * atan(half_diag / fs[i]) * 180 / pi;
+      if (!check_fov ||
+          (lower_fov_bound_degrees < fov && fov < upper_fov_bound_degrees)) {
+        fov_ok_idx[fov_ok_num] = i;
+        fov_ok_num++;
+      }
+    }
+    n = fov_ok_num;
+
     std::vector<M_t> results(n);
     for (int i = 0; i < n; ++i) {
-      results[i].f = fs[i];
-      results[i].R = Rs[i];
-      results[i].T = -Rs[i] * Cs[i];
+      results[i].f = fs[fov_ok_idx[i]];
+      results[i].R = Rs[fov_ok_idx[i]];
+      results[i].T = -Rs[fov_ok_idx[i]] * Cs[fov_ok_idx[i]];
     }
 
     return results;

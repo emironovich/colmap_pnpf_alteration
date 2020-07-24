@@ -143,6 +143,7 @@ class IncrementalMapper {
     size_t num_completed_observations = 0;
     size_t num_filtered_observations = 0;
     size_t num_adjusted_observations = 0;
+    bool success = true;
   };
 
   // Create incremental mapper. The database cache must live for the entire

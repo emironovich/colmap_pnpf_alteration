@@ -33,12 +33,16 @@
 
 #include <array>
 #include <fstream>
+#include <string>
+#include <unordered_map>
+#include <cmath>
 
 #include "base/projection.h"
 #include "base/triangulation.h"
 #include "estimators/pose.h"
 #include "util/bitmap.h"
 #include "util/misc.h"
+#include "estimators/absolute_pose_pnpf.h"
 
 namespace colmap {
 namespace {
@@ -93,7 +97,7 @@ bool IncrementalMapper::Options::Check() const {
   CHECK_OPTION_GE(filter_max_reproj_error, 0.0);
   CHECK_OPTION_GE(filter_min_tri_angle, 0.0);
   CHECK_OPTION_GE(max_reg_trials, 1);
-  //todo add pose_algo in {3, 4, 35}
+  // todo add pose_algo in {3, 4, 35}
   return true;
 }
 
@@ -502,6 +506,8 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   // Pose refinement
   //////////////////////////////////////////////////////////////////////////////
 
+
+
   if (!RefineAbsolutePose(abs_pose_refinement_options, inlier_mask,
                           tri_points2D, tri_points3D, &image.Qvec(),
                           &image.Tvec(), &camera)) {
@@ -570,17 +576,30 @@ IncrementalMapper::AdjustLocalBundle(
   CHECK_NOTNULL(reconstruction_);
   CHECK(options.Check());
 
+
+
   LocalBundleAdjustmentReport report;
 
   // Find images that have most 3D points with given image in common.
   const std::vector<image_t> local_bundle = FindLocalBundle(options, image_id);
 
+  std::unordered_map<image_t, Image> changed_images;
+  std::unordered_map<camera_t, Camera> changed_cameras;
+  std::unordered_map<point3D_t, Point3D> changed_points;
+
   // Do the bundle adjustment only if there is any connected images.
   if (local_bundle.size() > 0) {
     BundleAdjustmentConfig ba_config;
     ba_config.AddImage(image_id);
+    changed_images.emplace(image_id, reconstruction_->Image(image_id));
+    camera_t curr_camera_id = reconstruction_->Image(image_id).CameraId();
+    changed_cameras.emplace(curr_camera_id, reconstruction_->Camera(curr_camera_id));
     for (const image_t local_image_id : local_bundle) {
       ba_config.AddImage(local_image_id);
+      changed_images.emplace(local_image_id, reconstruction_->Image(local_image_id));
+      camera_t curr_camera_id =
+          reconstruction_->Image(local_image_id).CameraId();
+      changed_cameras.emplace(curr_camera_id, reconstruction_->Camera(curr_camera_id));
     }
 
     // Fix the existing images, if option specified.
@@ -618,12 +637,44 @@ IncrementalMapper::AdjustLocalBundle(
       if (!point3D.HasError() || point3D.Track().Length() <= kMaxTrackLength) {
         ba_config.AddVariablePoint(point3D_id);
         variable_point3D_ids.insert(point3D_id);
+        changed_points.emplace(point3D_id, point3D);
       }
     }
 
     // Adjust the local bundle.
     BundleAdjuster bundle_adjuster(ba_options, ba_config);
     bundle_adjuster.Solve(reconstruction_);
+
+    const double pi = 3.14159265;
+    camera_t reg_camera_id = reconstruction_->Image(image_id).CameraId();
+    const Camera& curr_camera = reconstruction_->Camera(reg_camera_id);
+    double half_diag =
+        sqrt(pow(curr_camera.Width(), 2) + pow(curr_camera.Height(), 2)) / 2;
+
+    double fov_x = 2 * atan(half_diag / curr_camera.Params(0)) * 180 / pi;
+    double fov_y = 2 * atan(half_diag / curr_camera.Params(1)) * 180 / pi;
+
+    double u_bound = P35PfEstimator::upper_fov_bound_degrees;
+    double l_bound = P35PfEstimator::lower_fov_bound_degrees;
+
+    if (ba_options.check_fov && (fov_x > u_bound || fov_x < l_bound ||
+                                 fov_y > u_bound || fov_y < l_bound)) {
+      for (auto image_pair : changed_images) {
+        Image& changed_image = reconstruction_->Image(image_pair.first);
+        changed_image = image_pair.second;
+      }
+      for (auto camera_pair : changed_cameras) {
+        Camera& changed_camera = reconstruction_->Camera(camera_pair.first);
+        changed_camera = camera_pair.second;
+      }
+      for (auto point_pair : changed_points) {
+        Point3D& changed_point = reconstruction_->Point3D(point_pair.first);
+        changed_point = point_pair.second;
+      }
+
+      report.success = false;
+      return report;
+    }
 
     report.num_adjusted_observations =
         bundle_adjuster.Summary().num_residuals / 2;

@@ -30,6 +30,7 @@
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
 #include "util/random.h"
+#include <chrono>
 
 namespace colmap {
 
@@ -45,8 +46,11 @@ void SetPRNGSeed(unsigned seed) {
     delete PRNG;
   }
 
-  PRNG = new std::mt19937(seed);
-  srand(seed);
+  unsigned seed_time =
+      std::chrono::system_clock::now().time_since_epoch().count();
+
+  PRNG = new std::mt19937(seed_time);
+  srand(seed_time);
 }
 
 }  // namespace colmap

@@ -74,6 +74,10 @@ struct BundleAdjustmentOptions {
   // due to the overhead of threading.
   int min_num_residuals_for_multi_threading = 50000;
 
+  bool check_fov = false;
+  double upper_fov_bound_degrees = 130;
+  double lower_fov_bound_degrees = 50;
+
   // Ceres-Solver options.
   ceres::Solver::Options solver_options;
 
