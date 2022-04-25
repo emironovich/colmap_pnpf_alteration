@@ -4,4 +4,4 @@
 	ignore = all
 [submodule "lib/pnp_lib"]
 	path = lib/pnp_lib
-	url = https://uhtikiber@bitbucket.org/fast_localization/pnp_lib.git
+	url = git@bitbucket.org:fast_localization/pnp_lib.git
