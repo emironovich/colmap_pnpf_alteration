@@ -35,6 +35,8 @@ project(COLMAP)
 
 set(COLMAP_VERSION "3.6")
 set(COLMAP_VERSION_NUMBER "3600")
+set(CMAKE_CXX_FLAGS "-std=c++14")
+set(CMAKE_CXX_STANDARD 14)
 
 
 ################################################################################
